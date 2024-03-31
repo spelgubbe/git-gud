@@ -26,8 +26,8 @@ export const contentForDiff = async (
   commitA: string,
   commitB: string
 ): Promise<Pair<string, string>> => {
-  const filePathA: string = getNewFileForDiff(diffFile);
-  const filePathB: string = getOldFileForDiff(diffFile);
+  const filePathA: string = getOldFileForDiff(diffFile);
+  const filePathB: string = getNewFileForDiff(diffFile);
 
   const gitUtils: GitUtils = new GitUtils();
   const fileAContent: string = await gitUtils.getFileContentsAtCommit(
