@@ -1,5 +1,3 @@
-import * as HelperTypes from "./jtypes";
-import * as Diff2Html from "diff2html";
 import { DiffFile, DiffBlock, DiffLine, LineType } from "diff2html/lib/types";
 
 export const getNewFileForDiff = (fileDiff: DiffFile): string => {
@@ -56,38 +54,4 @@ export const getDeletedLineNumbersForFile = (fileDiff: DiffFile): number[] => {
     }
   }
   return deletedLineNumbers;
-};
-
-/**
- * Expected inside the array is DiffFile from Diff2Html
- * @param diffArray Expect an array that holds diff information for each file in a git diff
- * @returns non-null array of file mappings
- */
-const getFilePathMappingsDiffFiles = (
-  diffArray: DiffFile[]
-): HelperTypes.FilePathMapping[] => {
-  // we expect a json array here, should be one element per file in the diff string
-  let resultArray: HelperTypes.FilePathMapping[] = [];
-  if (diffArray) {
-    for (const fileDiffs of diffArray) {
-      if (fileDiffs.oldName && fileDiffs.newName) {
-        const oldName: string = fileDiffs.oldName;
-        const newName: string = fileDiffs.newName;
-        const fileIdentifier: HelperTypes.FilePathMapping = {
-          oldFilePath: oldName,
-          newFilePath: newName,
-        };
-
-        resultArray.push(fileIdentifier);
-      } else {
-        console.log(
-          "unexpected json structure of file diff (expects new and old name)"
-        );
-      }
-    }
-  } else {
-    console.log("unexpected input to getFilePathMappingsFromJson");
-  }
-
-  return resultArray;
 };
