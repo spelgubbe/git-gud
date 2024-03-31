@@ -6,87 +6,141 @@ import {
   DiffFileName,
 } from "diff2html/lib/types";
 import { GitUtils } from "./GitUtils";
-import { getNewFileForDiff, getOldFileForDiff } from "./DiffFileUtils";
-
-type Pair<L, R> = {
-  first: L;
-  second: R;
-};
+import {
+  getNewFileForDiff,
+  getOldFileForDiff,
+  getInsertedLineNumbersForFile,
+  getDeletedLineNumbersForFile,
+} from "./DiffFileUtils";
+import { Pair } from "./types/common";
+import * as FileUtils from "./FileUtils";
+import * as Diff2Html from "diff2html";
+import { contentPerDiffMap, contentForDiff } from "./FileContentHelper";
+import {
+  FileWithDiff,
+  FileWithDeletions,
+  FileWithInsertions,
+  DiffPair,
+  FileType,
+} from "./types/difftypes";
 
 interface MultiFileHighligher {
   /**
-   * Line up all the file contents associated with a git diff.
-   * Expects pair.first to be the file before (at commit A),
-   * and expects pair.second to be the file after (at commit B).
-   * @param diffFiles Array of DiffFile representing the result
-   * of a git diff on a per-file basis
+   * Get the file contents of all files associated with a git diff between commit A and commit B,
+   * at the repository state of commit A and commit B respectively.
+   * @param commitA commitHash
+   * @param commitB commitHash
    */
-  contentForDiffs(
-    diffFiles: DiffFile[],
-    commitA: string,
-    commitB: string
-  ): Pair<string, string>[];
+  getContentForDiff(commitA: string, commitB: string): Pair<string, string>[];
 }
 
-/**
- * Get file contents for the files associated with a diff.
- *
- * @param diffFile diff object associated with the diff between commitA and commitB
- * @param commitA
- * @param commitB
- * @returns Pair of strings where first string is the file at commitA, the second string is the file at commitB
- */
-const contentForDiff = async (
-  diffFile: DiffFile,
-  commitA: string,
-  commitB: string
-): Promise<Pair<string, string>> => {
-  const filePathA: string = getNewFileForDiff(diffFile);
-  const filePathB: string = getOldFileForDiff(diffFile);
-
-  const gitUtils: GitUtils = new GitUtils();
-  const fileAContent: string = await gitUtils.getFileContentsAtCommit(
-    filePathA,
-    commitA
-  );
-  const fileBContent: string = await gitUtils.getFileContentsAtCommit(
-    filePathB,
-    commitB
-  );
-
-  return { first: fileAContent, second: fileBContent };
-};
-
-const fileIdToContentMap = async (
-  diffFiles: DiffFile[],
-  commitA: string,
-  commitB: string
-): Promise<Map<DiffFileName, Pair<string, string>>> => {
-  // use a simple data structure for key
-  const fileToContentMap: Map<DiffFileName, Pair<string, string>> = new Map();
+const getDiffFileMap = (diffFiles: DiffFile[]): Map<DiffFileName, DiffFile> => {
+  let diffFileMap: Map<DiffFileName, DiffFile> = new Map();
   diffFiles.forEach((diffFile: DiffFile) => {
-    const contentPair: Promise<Pair<string, string>> = contentForDiff(
-      diffFile,
-      commitA,
-      commitB
-    );
     const diffFn: DiffFileName = {
       oldName: diffFile.oldName,
       newName: diffFile.newName,
     };
-    contentPair.then((pair) => fileToContentMap.set(diffFn, pair));
+
+    diffFileMap.set(diffFn, diffFile);
   });
-  return fileToContentMap;
+  return diffFileMap;
 };
 
-const contentForDiffs = async (
-  diffFiles: DiffFile[],
+export const getContentForDiff = async (
   commitA: string,
   commitB: string
 ): Promise<Pair<string, string>[]> => {
+  const diffString: string = await new GitUtils(".").getGitDiff();
+  const diffFiles: DiffFile[] = Diff2Html.parse(diffString);
+
+  // need a map for quick lookups
+  const diffFileMap = getDiffFileMap(diffFiles);
+
+  const diffToContentMap: Map<
+    DiffFileName,
+    Pair<string, string>
+  > = await contentPerDiffMap(diffFiles, commitA, commitB);
+
+  // for type safety
+  //return diffToContentMap.values ()
+  return [];
+};
+
+export const getFilesWithDiffsFromDiff = async (
+  diffFile: DiffFile,
+  commitA: string,
+  commitB: string
+): Promise<DiffPair<FileWithDeletions, FileWithInsertions>> => {
+  const fileNameBefore = diffFile.oldName;
+  const fileNameAfter = diffFile.newName;
+
+  const fileLangType = diffFile.language;
+
+  const insertedLines: number[] = getInsertedLineNumbersForFile(diffFile);
+  const deletedLines: number[] = getDeletedLineNumbersForFile(diffFile);
+
+  // these line numbers are one indexed
+  console.log("Filename: " + fileNameBefore + "(at " + commitA + ")");
+  console.log("Deleted: " + deletedLines);
+
+  console.log("Filename: " + fileNameAfter + "(at " + commitB + ")");
+  console.log("Inserted: " + insertedLines);
+
+  const fileContentBeforeAfter: Pair<string, string> = await contentForDiff(
+    diffFile,
+    commitA,
+    commitB
+  );
+
+  let newFileWithDiff: FileWithInsertions = {
+    language: fileLangType,
+    fileType: FileType.HAS_INSERTIONS,
+    content: fileContentBeforeAfter.second,
+    insertedLines: insertedLines,
+  };
+  let oldFileWithDiff: FileWithDeletions = {
+    language: fileLangType,
+    fileType: FileType.HAS_DELETIONS,
+    content: fileContentBeforeAfter.first,
+    deletedLines: deletedLines,
+  };
+
+  return { old: oldFileWithDiff, new: newFileWithDiff };
+};
+
+// this takes the Diff2Html.parse product (that is a product of a diff string)
+//
+export const getFilesAndDiffsFromDiff = async (
+  diffFiles: DiffFile[],
+  commitA: string,
+  commitB: string
+): Promise<DiffPair<FileWithDeletions, FileWithInsertions>[]> => {
   return Promise.all(
     diffFiles.map((diffFile: DiffFile) =>
-      contentForDiff(diffFile, commitA, commitB)
+      getFilesWithDiffsFromDiff(diffFile, commitA, commitB)
     )
   );
+};
+
+export const getDiffPairsForDiff = async (
+  commitA: string,
+  commitB: string
+): Promise<DiffPair<FileWithDeletions, FileWithInsertions>[]> => {
+  const diffString: string = await new GitUtils(".").getGitDiffAB(
+    commitA,
+    commitB
+  );
+  const diffFiles: DiffFile[] = Diff2Html.parse(diffString);
+  return getFilesAndDiffsFromDiff(diffFiles, commitA, commitB);
+};
+
+export const getDiffPairsForCurrentDiff = async (): Promise<
+  DiffPair<FileWithDeletions, FileWithInsertions>[]
+> => {
+  const diffString: string = await new GitUtils(".").getGitDiff();
+  console.log("git diff string: \n");
+  console.log(diffString);
+  const diffFiles: DiffFile[] = Diff2Html.parse(diffString);
+  return getFilesAndDiffsFromDiff(diffFiles, "HEAD", "");
 };

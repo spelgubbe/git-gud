@@ -1,4 +1,5 @@
 import { $ } from "bun";
+import { readFileSync } from "./FileUtils";
 
 /**
  * Encapsulate functionality in a class as the git path will be constant
@@ -11,10 +12,6 @@ export class GitUtils {
     this.gitPath = gitPath || ".";
   }
 
-  _getGitCmd = () => {
-    return `git -C ${this.gitPath}`;
-  };
-
   /**
    * @param filePath File path relative to repository root
    * @param commitHash
@@ -24,21 +21,26 @@ export class GitUtils {
     filePath: string,
     commitHash: string
   ): Promise<string> => {
+    if (commitHash === "") {
+      return await this.getFileContents(filePath);
+    }
     // Use a git command to view the file as it was at a specific commit
     //`git cat-file -p 621a4747758013c590ef95314e8ea756e656b8d1:src/bios/plugin/web/wfs/WFS.java`
-    return await $`${this._getGitCmd()} cat-file -p ${commitHash}:${filePath}`.text();
+    return await $`git cat-file -p ${commitHash}:${filePath}`.text();
   };
 
   getFileContents = async (filePath: string): Promise<string> => {
     // Use a git command to view the file as it was at a specific commit
     //`git cat-file -p 621a4747758013c590ef95314e8ea756e656b8d1:src/bios/plugin/web/wfs/WFS.java`
-    const cmd = await $`${this._getGitCmd()} cat-file -p :${filePath}`;
+    /*const cmd = await $`git cat-file -p :${filePath}`;
     if (cmd.exitCode !== 0) {
       console.log("encontered unexpected return code in getFileContents");
       console.log(cmd.text());
       return ""; // no point in exposing the error string
     }
-    return cmd.text();
+    return cmd.text();*/
+    // current state of file
+    return readFileSync(filePath);
   };
 
   /**
@@ -51,10 +53,12 @@ export class GitUtils {
     commitHashA: string,
     commitHashB: string
   ): Promise<string> => {
-    return await $`${this._getGitCmd()} diff ${commitHashA} ${commitHashB}`.text();
+    return await $`git diff ${commitHashA} ${commitHashB}`.text();
   };
 
   getGitDiff = async (): Promise<string> => {
-    return await $`${this._getGitCmd()} diff`.text();
+    console.log("current git path: " + this.gitPath);
+    const output = await $`git diff`.text();
+    return output;
   };
 }

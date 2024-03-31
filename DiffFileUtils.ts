@@ -10,7 +10,7 @@ export const getOldFileForDiff = (fileDiff: DiffFile): string => {
   return fileDiff.oldName;
 };
 
-const getDiffLinesForDiffFile = (fileDiff: DiffFile): DiffLine[] => {
+export const getDiffLinesForDiffFile = (fileDiff: DiffFile): DiffLine[] => {
   const allDiffLines: DiffLine[] = [];
   // get the array of inserted lines indicated by the git diff
   const diffBlocks: DiffBlock[] = fileDiff.blocks;
@@ -30,7 +30,7 @@ const getDiffLinesForDiffFile = (fileDiff: DiffFile): DiffLine[] => {
  * @param fileDiff
  * @returns line numbers for the diff that correspond to inserted lines
  */
-const getInsertedLineNumbersForFile = (fileDiff: DiffFile): number[] => {
+export const getInsertedLineNumbersForFile = (fileDiff: DiffFile): number[] => {
   const insertedLineNumbers: number[] = [];
   const diffLines: DiffLine[] = getDiffLinesForDiffFile(fileDiff);
   for (const diffLine of diffLines) {
@@ -47,7 +47,7 @@ const getInsertedLineNumbersForFile = (fileDiff: DiffFile): number[] => {
  * @param fileDiff DiffFile object
  * @returns line numbers for the diff that correspond to deleted lines
  */
-const getDeletedLineNumbersForFile = (fileDiff: DiffFile): number[] => {
+export const getDeletedLineNumbersForFile = (fileDiff: DiffFile): number[] => {
   const deletedLineNumbers: number[] = [];
   const diffLines: DiffLine[] = getDiffLinesForDiffFile(fileDiff);
   for (const diffLine of diffLines) {
