@@ -1,29 +1,19 @@
-import { unified } from "unified";
 //import rehypeStringify from 'rehype-stringify'
-import rehypeShiki from "@shikijs/rehype";
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
-import * as fs from "fs";
-import { $ } from "bun";
-import * as Diff2Html from "diff2html";
 import { codeToHtml, ShikiTransformer } from "shiki";
 
 // new stuff
-import rehypeParse from "rehype-parse";
-import rehypeStringify from "rehype-stringify";
-import { visit } from "unist-util-visit";
 
 // use helpers to make the code cleaner
-import * as HelperTypes from "./jtypes";
-import * as GitUtils from "./GitUtils";
-
-import { DiffFile } from "diff2html/lib/types";
-import { open } from "node:fs/promises";
-import * as FileUtils from "./FileUtils";
-import { getDiffPairsForCurrentDiff } from "./MultiFileHighlighter";
 
 import {
-  transformerNotationDiff,
+  getDiffPairsForCurrentDiff,
+  getDiffPairsForDiff,
+} from "./MultiFileHighlighter";
+
+import {
+  transformerRenderWhitespace,
   // ...
 } from "@shikijs/transformers";
 
@@ -35,89 +25,7 @@ import {
   FileType,
 } from "./types/difftypes";
 
-import { Pair } from "./types/common";
-
-const getGitDiff = async () => {
-  return await $`git -C ../dps/ diff`.text();
-};
-
-const getDiffFilesFromDiff = (commitDiff: string): DiffFile[] => {
-  return Diff2Html.parse(commitDiff);
-};
-
-// decorate inserted lines with comments at the end "// [!code ++]"
-const decorateLineDeletions = async (
-  fileLines: string[],
-  lineNumbers: number[]
-): Promise<string[]> => {
-  const suffix = "/* [!code --] */";
-  return suffixLines(fileLines, lineNumbers, suffix, true);
-};
-
-// decorate deleted lines with comments at the end "// [!code --]"
-const decorateLineInsertions = async (
-  fileLines: string[],
-  lineNumbers: number[]
-): Promise<string[]> => {
-  const suffix = "/* [!code ++] */";
-  return suffixLines(fileLines, lineNumbers, suffix, true);
-};
-
-const suffixLines = async (
-  fileLines: string[],
-  lineNumbers: number[],
-  suffix: string,
-  oneIndexed: boolean
-): Promise<string[]> => {
-  //for (codeFileContent)
-  //const fileLines: string[] = await FileUtils.getFileLines (codeFileContent)
-  const newFileLines: string[] = [];
-  const offset: number = oneIndexed ? 1 : 0;
-  for (
-    let lineNumber: number = 0;
-    lineNumber < fileLines.length;
-    lineNumber++
-  ) {
-    // TODO: Set<number> is better time complexity here
-    const oldLineContent: string = fileLines[lineNumber];
-    if (lineNumbers.includes(lineNumber + offset)) {
-      const newLineContent: string = oldLineContent + suffix;
-      newFileLines.push(newLineContent);
-    } else {
-      newFileLines.push(oldLineContent);
-    }
-    // this loop is unnecessary copying
-  }
-  return newFileLines;
-};
-
-// this fails in nested comments and similar
-const decorateWithDiffTransformer = async (
-  codeContent: string,
-  // ska handla!
-  lang: string
-): Promise<string> => {
-  const html = await codeToHtml(codeContent, {
-    lang: lang,
-    theme: "nord",
-    transformers: [transformerNotationDiff()],
-  });
-  return html;
-};
-
-const decorateWithDiffTransformer2 = async (
-  codeContent: string,
-  lang: string
-): Promise<string> => {
-  const html = await codeToHtml(codeContent, {
-    lang: lang,
-    theme: "nord",
-    // use a custom transformer // ???????? or not
-
-    //transformers: [transformerNotationDiff()],
-  });
-  return html;
-};
+import { Pair, CodeBlock } from "./types/common";
 
 const addDiffInsertedTransformer = (
   insertedLines: Set<number>
@@ -147,124 +55,29 @@ const addDiffDeletedTransformer = (
   };
 };
 
-// inspired by https://shiki.style/packages/transformers
-const decorateInsertions = async (
-  codeFileContent: string,
-  insertLineNumbers: Number[],
-  lang: string
-) => {
-  const code = await codeToHtml(codeFileContent, {
-    lang: lang,
-    theme: "vitesse-light",
-    transformers: [
-      {
-        pre(hast) {
-          // should mark it as "has diff": has-diff
-          // only if it has a diff
-        },
-
-        code(node) {},
-
-        line(node, line) {
-          node.properties["data-line"] = line;
-          if (insertLineNumbers.includes(line)) {
-            this.addClassToHast(node, "diff add"); // mark ++
-          }
-        },
-
-        span(node, line, col) {
-          node.properties["data-token"] = `token:${line}:${col}`;
-        },
-      },
-    ],
-  });
-
-  return code; // this is html
-};
-
-// inspired by https://shiki.style/packages/transformers
-const decorateDeletions = async (
-  codeFileContent: string,
-  deletedLineNumbers: Number[],
-  lang: string
-) => {
-  const code = await codeToHtml(codeFileContent, {
-    lang: lang,
-    theme: "monokai",
-    transformers: [
-      {
-        pre(hast) {
-          // should mark it as "has diff": has-diff
-          // only if it has a diff
-        },
-
-        code(node) {},
-
-        line(node, line) {
-          node.properties["data-line"] = line;
-          if (deletedLineNumbers.includes(line)) {
-            const tokensAtLine = this.tokens.at(line);
-            console.log("tokens at line " + line + ": "); // may be empty (whitespace)
-            console.log(tokensAtLine);
-            if (tokensAtLine) {
-              for (const token of tokensAtLine) {
-                console.log(token.bgColor);
-                console.log(token.color);
-                //token.color = '#00FF00';
-                token.bgColor = "#550000";
-              }
-            }
-            this.addClassToHast(node, "diff remove"); // mark -- // just adds a class
-          }
-        },
-
-        span(node, line, col) {
-          node.properties["data-token"] = `token:${line}:${col}`;
-        },
-      },
-    ],
-  });
-
-  return code; // this is html
-};
-
 const app = new Hono();
 
 function createHtml(text: string) {
   return { __html: text };
 }
 
-const getJavaFileString = async () => {
-  const codeText = fs.readFileSync("./KdTree.java", "utf8");
-
-  return codeText;
-};
-
 app.use("/diffStyles.css", serveStatic({ path: "./diffStyles.css" }));
 
-// TODO: encapsulate StringCache in a class
-// and probably just call it Cache<T>
-type StringCache = {
-  content: string;
-  timestamp: number;
-};
-
-const stringCache: StringCache = { content: "", timestamp: 0 };
-
-const getSiteContent2 = async (): Promise<Pair<string, string>[]> => {
-  // run git diff and collect all files and pair them with their inserted/deleted lines
-  const diffPairs: DiffPair<FileWithDeletions, FileWithInsertions>[] =
-    await getDiffPairsForCurrentDiff();
-  console.log("watcher?");
-  //console.log(diffPairs);
-  const htmlPairs: Pair<string, string>[] = [];
+const getCodeBlocksForDiffPairs = async (
+  diffPairs: DiffPair<FileWithDeletions, FileWithInsertions>[]
+) => {
+  const htmlPairs: Pair<CodeBlock, CodeBlock>[] = [];
   for (const diffPair of diffPairs) {
     const fileWithDeletions: FileWithDeletions = diffPair.old;
     const fileWithInsertions: FileWithInsertions = diffPair.new;
+    const oldFilePath: string = fileWithDeletions.filePath;
+    const newFilePath: string = fileWithInsertions.filePath;
+
+    // TODO: for now deleted files will point to /dev/null and give an emtpy string
+    // yet it will be rendered as a file with 1 line. Probably it's better to just
+    // mark a file as deleted instead.
 
     const [oldFileDecorated, newFileDecorated] = await Promise.all([
-      //getDecoratedFileHTML(fileWithDeletions, fileWithDeletions.language),
-      //getDecoratedFileHTML(fileWithInsertions, fileWithInsertions.language),
       getManuallyTransformedFileHtml(
         fileWithDeletions,
         fileWithDeletions.language
@@ -276,32 +89,28 @@ const getSiteContent2 = async (): Promise<Pair<string, string>[]> => {
     ]);
 
     htmlPairs.push({
-      first: oldFileDecorated,
-      second: newFileDecorated,
+      first: { title: oldFilePath, codeHtml: oldFileDecorated },
+      second: { title: newFilePath, codeHtml: newFileDecorated },
     });
   }
-  //console.log(htmlPairs);
   return htmlPairs;
 };
 
-const decorateInsertionsOrDeletions = async (
-  fileLines: string[],
-  fileWithDiff: FileWithDiff
-): Promise<string[]> => {
-  switch (fileWithDiff.fileType) {
-    case FileType.HAS_DELETIONS: {
-      return await decorateLineDeletions(fileLines, fileWithDiff.deletedLines);
-    }
-    case FileType.HAS_INSERTIONS: {
-      return await decorateLineInsertions(
-        fileLines,
-        fileWithDiff.insertedLines
-      );
-    }
-  }
-  console.log("No case was hit");
-  console.log("fileWithDiff: ");
-  console.log(fileWithDiff);
+const getSiteContent2 = async (): Promise<Pair<CodeBlock, CodeBlock>[]> => {
+  // run git diff and collect all files and pair them with their inserted/deleted lines
+  const diffPairs: DiffPair<FileWithDeletions, FileWithInsertions>[] =
+    await getDiffPairsForCurrentDiff();
+
+  return getCodeBlocksForDiffPairs(diffPairs);
+};
+
+const getContentForDiffs = async (
+  commitA: string,
+  commitB: string
+): Promise<Pair<CodeBlock, CodeBlock>[]> => {
+  const diffPairs: DiffPair<FileWithDeletions, FileWithInsertions>[] =
+    await getDiffPairsForDiff(commitA, commitB);
+  return getCodeBlocksForDiffPairs(diffPairs);
 };
 
 const getInsertionOrDeletionTransformer = async (
@@ -335,68 +144,36 @@ const getManuallyTransformedFileHtml = async (
 
   const html = await codeToHtml(codeContent, {
     lang: lang,
-    theme: "nord",
-    transformers: [diffTransformer],
+    theme: "monokai",
+    transformers: [diffTransformer, transformerRenderWhitespace()],
   });
   return html;
 };
 
-const getDecoratedFileHTML = async (
-  fileWithDiff: FileWithDiff,
-  lang: string
-): Promise<string> => {
-  console.log("Language is: " + lang);
-  const codeContent = fileWithDiff.content;
-  const fileLines: string[] = FileUtils.splitLines(codeContent);
+// Endpoints zone
 
-  let diffDecoratedFileLines: string[] = await decorateInsertionsOrDeletions(
-    fileLines,
-    fileWithDiff
-  );
-
-  //console.log("diff decorated lines:", diffDecoratedFileLines);
-
-  // collect lines into one string
-  const diffDecoratedFileContent = FileUtils.joinFileLines(
-    diffDecoratedFileLines
-  );
-
-  const transformedHtml = await decorateWithDiffTransformer(
-    diffDecoratedFileContent,
-    lang
-  );
-
-  return transformedHtml;
-};
-
-// FullDiffPage
 app.get("/", async (c) => {
-  const content: Pair<string, string>[] = await getSiteContent2();
+  const content: Pair<CodeBlock, CodeBlock>[] = await getSiteContent2();
 
   const fullPage = <FullDiffPage diffPairs={content} />;
   return c.html(fullPage);
 });
-/*
-app.get("/", async (c) => {
-  const customConfig = Diff2Html.defaultDiff2HtmlConfig;
 
-  const timestamp = Date.now();
-  const duration = 30000;
-  const timeSinceLastRun = timestamp - stringCache.timestamp;
+app.get("/diff", async (c) => {
+  const { commitA, commitB } = c.req.query();
 
-  let content: string;
-  if (timeSinceLastRun < duration) {
-    content = stringCache.content;
-  } else {
-    content = await getSiteContent();
-    stringCache.timestamp = Date.now();
-    stringCache.content = content;
+  if (commitA && commitB) {
+    const content: Pair<CodeBlock, CodeBlock>[] = await getContentForDiffs(
+      commitA,
+      commitB
+    );
+    const fullPage = <FullDiffPage diffPairs={content} />;
+    return c.html(fullPage);
   }
+  return c.html("");
+});
 
-  const fullPage = <FullPage diffContent={content} />;
-  return c.html(fullPage);
-});*/
-
+/// JSX Zone
 const Head = () => {
   return (
     <head>
@@ -409,39 +186,31 @@ const Head = () => {
   );
 };
 
-const DiffHolder = (props: { old: string; new: string }) => {
+const DiffHolder = (props: { old: CodeBlock; new: CodeBlock }) => {
   return (
     <div class="grid">
-      <div dangerouslySetInnerHTML={createHtml(props.old)}></div>
-      <div dangerouslySetInnerHTML={createHtml(props.new)}></div>
+      <div>
+        <h4>{props.old.title}</h4>
+        <div dangerouslySetInnerHTML={createHtml(props.old.codeHtml)}></div>
+      </div>
+      <div>
+        <h4>{props.new.title}</h4>
+        <div dangerouslySetInnerHTML={createHtml(props.new.codeHtml)}></div>
+      </div>
     </div>
   );
 };
 
-const FullDiffPage = (props: { diffPairs: Pair<string, string>[] }) => {
+const FullDiffPage = (props: { diffPairs: Pair<CodeBlock, CodeBlock>[] }) => {
   return (
     <html>
       <Head />
       <body>
         <div id="main">
-          {props.diffPairs.map((pair: Pair<string, string>) => (
+          {props.diffPairs.map((pair: Pair<CodeBlock, CodeBlock>) => (
             <DiffHolder old={pair.first} new={pair.second} />
           ))}
         </div>
-      </body>
-    </html>
-  );
-};
-
-const FullPage = (props: { diffContent?: any }) => {
-  return (
-    <html>
-      <Head />
-      <body>
-        <div
-          id="main"
-          dangerouslySetInnerHTML={createHtml(props.diffContent)} // beako
-        />
       </body>
     </html>
   );

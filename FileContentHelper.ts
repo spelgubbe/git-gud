@@ -34,10 +34,17 @@ export const contentForDiff = async (
     filePathA,
     commitA
   );
+
   const fileBContent: string = await gitUtils.getFileContentsAtCommit(
     filePathB,
     commitB
   );
+
+  console.log("File A content length: " + fileAContent.length);
+  console.log(fileAContent);
+
+  console.log("File B content length: " + fileBContent.length);
+  console.log(fileBContent);
 
   return { first: fileAContent, second: fileBContent };
 };

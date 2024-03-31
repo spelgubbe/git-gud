@@ -94,12 +94,14 @@ export const getFilesWithDiffsFromDiff = async (
   );
 
   let newFileWithDiff: FileWithInsertions = {
+    filePath: fileNameAfter,
     language: fileLangType,
     fileType: FileType.HAS_INSERTIONS,
     content: fileContentBeforeAfter.second,
     insertedLines: insertedLines,
   };
   let oldFileWithDiff: FileWithDeletions = {
+    filePath: fileNameBefore,
     language: fileLangType,
     fileType: FileType.HAS_DELETIONS,
     content: fileContentBeforeAfter.first,

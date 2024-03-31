@@ -17,7 +17,7 @@
 
   .diff.remove {
     background-color: var(--diff-red-background);
-    color: var(--diff-red);
+    /*color: var(--diff-red);*/
     opacity: 0.7;
   }
 
@@ -27,25 +27,25 @@
 
   .diff.add {
     background-color: var(--diff-green-background);
-    color: var(--diff-green);
+    /*color: var(--diff-green);*/
   }
 
   .diff.add::before {
-    /*content: "+";*/
+    /*content: "+";*/ /* had to be removed as it overrides line count */
   }
 
-  .vp-code .tab,
-  .vp-code .space {
+  code .line .tab,
+  code .line .space {
     position: relative;
   }
 
-  .vp-code .tab::before {
-    content: "⇥";
+  code .line .tab::before {
+    content: "⇥"; /* ⇥ */
     position: absolute;
     opacity: 0.3;
   }
 
-  .vp-code .space::before {
+  code .line .space::before {
     content: "·";
     position: absolute;
     opacity: 0.3;
@@ -87,5 +87,6 @@
   code .line::before {
     content: counter(step);
     counter-increment: step;
+    padding-right: 0.5rem;
   }
 }
