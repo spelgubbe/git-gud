@@ -110,6 +110,7 @@ const getContentForDiffs = async (
 ): Promise<Pair<CodeBlock, CodeBlock>[]> => {
   const diffPairs: DiffPair<FileWithDeletions, FileWithInsertions>[] =
     await getDiffPairsForDiff(commitA, commitB);
+  console.log("we got here!!!!");
   return getCodeBlocksForDiffPairs(diffPairs);
 };
 

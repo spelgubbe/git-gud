@@ -118,11 +118,20 @@ export const getFilesAndDiffsFromDiff = async (
   commitA: string,
   commitB: string
 ): Promise<DiffPair<FileWithDeletions, FileWithInsertions>[]> => {
-  return Promise.all(
+  const diffPairs: DiffPair<FileWithDeletions, FileWithInsertions>[] = [];
+
+  // do everything synchronous to not hang ??
+  for (const diffFile of diffFiles) {
+    diffPairs.push(await getFilesWithDiffsFromDiff(diffFile, commitA, commitB));
+  }
+
+  return diffPairs;
+
+  /*return Promise.all(
     diffFiles.map((diffFile: DiffFile) =>
       getFilesWithDiffsFromDiff(diffFile, commitA, commitB)
     )
-  );
+  );*/
 };
 
 export const getDiffPairsForDiff = async (

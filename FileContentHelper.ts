@@ -40,11 +40,15 @@ export const contentForDiff = async (
     commitB
   );
 
-  console.log("File A content length: " + fileAContent.length);
-  console.log(fileAContent);
+  console.log(
+    "File A (" + filePathA + ")" + "content length: " + fileAContent.length
+  );
+  //console.log(fileAContent);
 
-  console.log("File B content length: " + fileBContent.length);
-  console.log(fileBContent);
+  console.log(
+    "File B (" + filePathB + ")" + "content length: " + fileBContent.length
+  );
+  //console.log(fileBContent);
 
   return { first: fileAContent, second: fileBContent };
 };
