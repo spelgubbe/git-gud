@@ -3,14 +3,10 @@ import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { codeToHtml, ShikiTransformer } from "shiki";
 
-// new stuff
-
-// use helpers to make the code cleaner
-
 import {
   getDiffPairsForCurrentDiff,
   getDiffPairsForDiff,
-} from "./MultiFileHighlighter";
+} from "./DiffPairProducer";
 
 import {
   transformerRenderWhitespace,
@@ -26,6 +22,8 @@ import {
 } from "./types/difftypes";
 
 import { Pair, CodeBlock } from "./types/common";
+
+// TODO: handle when files are renamed (atm previous file is 1 empty line)
 
 const addDiffInsertedTransformer = (
   insertedLines: Set<number>
@@ -77,16 +75,16 @@ const getCodeBlocksForDiffPairs = async (
     // yet it will be rendered as a file with 1 line. Probably it's better to just
     // mark a file as deleted instead.
 
-    const [oldFileDecorated, newFileDecorated] = await Promise.all([
-      getManuallyTransformedFileHtml(
+    const [oldFileDecorated, newFileDecorated] = [
+      await getManuallyTransformedFileHtml(
         fileWithDeletions,
         fileWithDeletions.language
       ),
-      getManuallyTransformedFileHtml(
+      await getManuallyTransformedFileHtml(
         fileWithInsertions,
         fileWithInsertions.language
       ),
-    ]);
+    ];
 
     htmlPairs.push({
       first: { title: oldFilePath, codeHtml: oldFileDecorated },
@@ -110,7 +108,7 @@ const getContentForDiffs = async (
 ): Promise<Pair<CodeBlock, CodeBlock>[]> => {
   const diffPairs: DiffPair<FileWithDeletions, FileWithInsertions>[] =
     await getDiffPairsForDiff(commitA, commitB);
-  console.log("we got here!!!!");
+  //console.log("we got here!!!!");
   return getCodeBlocksForDiffPairs(diffPairs);
 };
 

@@ -21,7 +21,7 @@ export class GitUtils {
     filePath: string,
     commitHash: string
   ): Promise<string> => {
-    console.log("Calling getFileContentsAtCommit with file: " + filePath);
+    //console.log("Calling getFileContentsAtCommit with file: " + filePath);
     if (commitHash === "") {
       return await this.getFileContents(filePath);
     }
@@ -58,7 +58,7 @@ export class GitUtils {
   };
 
   getGitDiff = async (): Promise<string> => {
-    console.log("current git path: " + this.gitPath);
+    //console.log("current git path: " + this.gitPath);
     const output = await $`git diff`.text();
     return output;
   };

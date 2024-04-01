@@ -1,10 +1,4 @@
-import {
-  DiffFile,
-  DiffBlock,
-  DiffLine,
-  LineType,
-  DiffFileName,
-} from "diff2html/lib/types";
+import { DiffFile, DiffFileName } from "diff2html/lib/types";
 import { GitUtils } from "./GitUtils";
 import { getNewFileForDiff, getOldFileForDiff } from "./DiffFileUtils";
 
@@ -40,6 +34,7 @@ export const contentForDiff = async (
     commitB
   );
 
+  /*
   console.log(
     "File A (" + filePathA + ")" + "content length: " + fileAContent.length
   );
@@ -47,7 +42,7 @@ export const contentForDiff = async (
 
   console.log(
     "File B (" + filePathB + ")" + "content length: " + fileBContent.length
-  );
+  );*/
   //console.log(fileBContent);
 
   return { first: fileAContent, second: fileBContent };
@@ -77,18 +72,6 @@ const fileIdToContentMap = async (
   }
 
   return fileToContentMap;
-};
-
-const contentForDiffs = async (
-  diffFiles: DiffFile[],
-  commitA: string,
-  commitB: string
-): Promise<Pair<string, string>[]> => {
-  return Promise.all(
-    diffFiles.map((diffFile: DiffFile) =>
-      contentForDiff(diffFile, commitA, commitB)
-    )
-  );
 };
 
 export const contentPerDiffMap = async (
