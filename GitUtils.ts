@@ -62,4 +62,15 @@ export class GitUtils {
     const output = await $`git diff`.text();
     return output;
   };
+
+  getGitGrep = async (pattern: string): Promise<string> => {
+    const cmd = await $`git grep ${pattern}`;
+    if (cmd.exitCode !== 0) {
+      console.log("encontered unexpected return code in getGitGrep");
+      console.log(cmd.text());
+      return ""; // no point in exposing the error string
+    }
+    const text = cmd.text();
+    return text;
+  };
 }

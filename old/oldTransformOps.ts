@@ -5,14 +5,14 @@ import { codeToHtml } from "shiki";
 
 // use helpers to make the code cleaner
 
-import * as FileUtils from "./FileUtils";
+import * as FileUtils from "../FileUtils";
 
 import {
   transformerNotationDiff,
   // ...
 } from "@shikijs/transformers";
 
-import { FileWithDiff, FileType } from "./types/difftypes";
+import { FileWithDiff, FileType } from "../types/difftypes";
 
 const getDecoratedFileHTML = async (
   fileWithDiff: FileWithDiff,

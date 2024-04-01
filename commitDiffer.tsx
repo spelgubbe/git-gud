@@ -2,16 +2,17 @@
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { codeToHtml, ShikiTransformer } from "shiki";
+import {
+  addDiffInsertedTransformer,
+  addDiffDeletedTransformer,
+} from "./shiki-transformers";
 
 import {
   getDiffPairsForCurrentDiff,
   getDiffPairsForDiff,
 } from "./DiffPairProducer";
 
-import {
-  transformerRenderWhitespace,
-  // ...
-} from "@shikijs/transformers";
+import { transformerRenderWhitespace } from "@shikijs/transformers";
 
 import {
   DiffPair,
@@ -23,43 +24,22 @@ import {
 
 import { Pair, CodeBlock } from "./types/common";
 
+import { getGrepResults } from "./GitSearchUtil";
+
+import {
+  Head,
+  DiffHolder,
+  FullDiffPage,
+  FullGitGrepPage,
+  GitGrepResultHolder,
+  GitGrepLineHolder,
+} from "./components";
+
 // TODO: handle when files are renamed (atm previous file is 1 empty line)
-
-const addDiffInsertedTransformer = (
-  insertedLines: Set<number>
-): ShikiTransformer => {
-  return {
-    name: "diff add transformer",
-    line(hast, line) {
-      // 1 indexed lines for some reason, this is a recurring theme
-      if (insertedLines.has(line)) {
-        this.addClassToHast(hast, "diff add");
-      }
-    },
-  };
-};
-
-const addDiffDeletedTransformer = (
-  insertedLines: Set<number>
-): ShikiTransformer => {
-  return {
-    name: "diff remove transformer",
-    line(hast, line) {
-      // 1 indexed lines for some reason, this is a recurring theme
-      if (insertedLines.has(line)) {
-        this.addClassToHast(hast, "diff remove");
-      }
-    },
-  };
-};
-
-const app = new Hono();
 
 function createHtml(text: string) {
   return { __html: text };
 }
-
-app.use("/diffStyles.css", serveStatic({ path: "./diffStyles.css" }));
 
 const getCodeBlocksForDiffPairs = async (
   diffPairs: DiffPair<FileWithDeletions, FileWithInsertions>[]
@@ -94,7 +74,7 @@ const getCodeBlocksForDiffPairs = async (
   return htmlPairs;
 };
 
-const getSiteContent2 = async (): Promise<Pair<CodeBlock, CodeBlock>[]> => {
+const getSiteContent = async (): Promise<Pair<CodeBlock, CodeBlock>[]> => {
   // run git diff and collect all files and pair them with their inserted/deleted lines
   const diffPairs: DiffPair<FileWithDeletions, FileWithInsertions>[] =
     await getDiffPairsForCurrentDiff();
@@ -112,9 +92,9 @@ const getContentForDiffs = async (
   return getCodeBlocksForDiffPairs(diffPairs);
 };
 
-const getInsertionOrDeletionTransformer = async (
+const getInsertionOrDeletionTransformer = (
   fileWithDiff: FileWithDiff
-): Promise<ShikiTransformer> => {
+): ShikiTransformer => {
   switch (fileWithDiff.fileType) {
     case FileType.HAS_DELETIONS: {
       const deletedLineSet: Set<number> = new Set<number>(
@@ -139,7 +119,7 @@ const getManuallyTransformedFileHtml = async (
   lang: string
 ): Promise<string> => {
   const codeContent = fileWithDiff.content;
-  const diffTransformer = await getInsertionOrDeletionTransformer(fileWithDiff);
+  const diffTransformer = getInsertionOrDeletionTransformer(fileWithDiff);
 
   const html = await codeToHtml(codeContent, {
     lang: lang,
@@ -151,8 +131,12 @@ const getManuallyTransformedFileHtml = async (
 
 // Endpoints zone
 
+const app = new Hono();
+
+app.use("/diffStyles.css", serveStatic({ path: "./diffStyles.css" }));
+
 app.get("/", async (c) => {
-  const content: Pair<CodeBlock, CodeBlock>[] = await getSiteContent2();
+  const content: Pair<CodeBlock, CodeBlock>[] = await getSiteContent();
 
   const fullPage = <FullDiffPage diffPairs={content} />;
   return c.html(fullPage);
@@ -172,48 +156,26 @@ app.get("/diff", async (c) => {
   return c.html("");
 });
 
-/// JSX Zone
-const Head = () => {
-  return (
-    <head>
-      <link rel="stylesheet" href="diffStyles.css" />
-      <link
-        rel="stylesheet"
-        href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
-      />
-    </head>
-  );
-};
+app.get("/search", async (c) => {
+  const fullPage = <FullGitGrepPage />;
+  return c.html(fullPage);
+});
 
-const DiffHolder = (props: { old: CodeBlock; new: CodeBlock }) => {
-  return (
-    <div class="grid">
-      <div>
-        <h4>{props.old.title}</h4>
-        <div dangerouslySetInnerHTML={createHtml(props.old.codeHtml)}></div>
-      </div>
-      <div>
-        <h4>{props.new.title}</h4>
-        <div dangerouslySetInnerHTML={createHtml(props.new.codeHtml)}></div>
-      </div>
-    </div>
-  );
-};
+app.get("/grep", async (c) => {
+  const { pattern } = c.req.query();
 
-const FullDiffPage = (props: { diffPairs: Pair<CodeBlock, CodeBlock>[] }) => {
-  return (
-    <html>
-      <Head />
-      <body>
-        <div id="main">
-          {props.diffPairs.map((pair: Pair<CodeBlock, CodeBlock>) => (
-            <DiffHolder old={pair.first} new={pair.second} />
-          ))}
-        </div>
-      </body>
-    </html>
-  );
-};
+  if (pattern) {
+    console.log("we gt pattern");
+    const content: Pair<string, string>[] = await getGrepResults(pattern);
+
+    //const fullPage = <FullDiffPage diffPairs={content} />;
+    console.log("we got pairs: ");
+    console.log(content);
+    const grepResultElement = <GitGrepResultHolder resultPairs={content} />;
+    return c.html(grepResultElement);
+  }
+  return c.html("");
+});
 
 const port = parseInt(process.env.PORT!) || 8080 || 3000;
 console.log(`Running at http://localhost:${port}`);
