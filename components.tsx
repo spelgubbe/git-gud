@@ -1,5 +1,9 @@
 import { Pair, CodeBlock } from "./types/common";
 
+function createHtml(text: string) {
+  return { __html: text };
+}
+
 export const Head = () => {
   return (
     <head>

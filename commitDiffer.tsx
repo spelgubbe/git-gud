@@ -37,10 +37,6 @@ import {
 
 // TODO: handle when files are renamed (atm previous file is 1 empty line)
 
-function createHtml(text: string) {
-  return { __html: text };
-}
-
 const getCodeBlocksForDiffPairs = async (
   diffPairs: DiffPair<FileWithDeletions, FileWithInsertions>[]
 ) => {

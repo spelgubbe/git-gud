@@ -1,5 +1,8 @@
 # git-gud
 
+## Screenshots
+ ![Screenshot from the diff endpoint](screenshots/gitgu.png)
+
 This project aims to provide some cool features for a git repository, kinda like Github does.
 Additionally the aim is to get used to some new web development tools.
 
